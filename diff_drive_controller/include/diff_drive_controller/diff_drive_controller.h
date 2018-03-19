@@ -186,12 +186,20 @@ namespace diff_drive_controller
      */
     bool readPosition(double& left_pos, double& right_pos);
 
+  public:
     /**
      * \brief Velocity command callback
      * \param command Velocity command message (twist)
      */
     void cmdVelCallback(const geometry_msgs::Twist& command);
 
+    void computeOdom (const ros::Time& time, const ros::Duration& period);
+
+    void computeCommand (const ros::Time& time, const ros::Duration& period);
+
+    const Odometry& odometry () const;
+
+  private:
     /**
      * \brief Get the wheel names from a wheel param
      * \param [in]  controller_nh Controller node handler

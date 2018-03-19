@@ -292,6 +292,79 @@ namespace diff_drive_controller{
 
   void DiffDriveController::update(const ros::Time& time, const ros::Duration& period)
   {
+    computeOdom (time, period);
+
+    computeCommand (time, period);
+  }
+
+
+  void DiffDriveController::starting(const ros::Time& time)
+  {
+    brake();
+
+    // Register starting time used to keep fixed rate
+    last_state_publish_time_ = time;
+
+    init_ = false;
+  }
+
+  void DiffDriveController::stopping(const ros::Time& /*time*/)
+  {
+    brake();
+  }
+
+  void DiffDriveController::brake()
+  {
+    const double vel = 0.0;
+    for (size_t i = 0; i < wheel_joints_size_; ++i)
+    {
+      left_wheel_joints_[i].setCommand(vel);
+      right_wheel_joints_[i].setCommand(vel);
+    }
+  }
+
+  bool DiffDriveController::readPosition(double& left_pos, double& right_pos)
+  {
+    left_pos = right_pos = 0.0;
+    for (size_t i = 0; i < wheel_joints_size_; ++i)
+    {
+      const double lp = left_wheel_joints_[i].getPosition();
+      const double rp = right_wheel_joints_[i].getPosition();
+      if (std::isnan(lp) || std::isnan(rp))
+        return false;
+
+      left_pos  += lp;
+      right_pos += rp;
+    }
+
+    left_pos  /= wheel_joints_size_;
+    right_pos /= wheel_joints_size_;
+
+    return true;
+  }
+
+  void DiffDriveController::cmdVelCallback(const geometry_msgs::Twist& command)
+  {
+    if (isRunning())
+    {
+      command_struct_.ang   = command.angular.z;
+      command_struct_.lin   = command.linear.x;
+      command_struct_.stamp = ros::Time::now();
+      command_.writeFromNonRT (command_struct_);
+      ROS_DEBUG_STREAM_NAMED(name_,
+                             "Added values to command. "
+                             << "Ang: "   << command_struct_.ang << ", "
+                             << "Lin: "   << command_struct_.lin << ", "
+                             << "Stamp: " << command_struct_.stamp);
+    }
+    else
+    {
+      ROS_ERROR_NAMED(name_, "Can't accept new commands. Controller is not running.");
+    }
+  }
+
+  void DiffDriveController::computeOdom (const ros::Time& time, const ros::Duration& )
+  {
     // COMPUTE AND PUBLISH ODOMETRY
     if (open_loop_)
     {
@@ -346,7 +419,10 @@ namespace diff_drive_controller{
         tf_odom_pub_->unlockAndPublish();
       }
     }
+  }
 
+  void DiffDriveController::computeCommand(const ros::Time& time, const ros::Duration& period)
+  {
     // MOVE ROBOT
     // Retreive current velocity command and time step:
     Commands curr_cmd = *(command_.readFromRT());
@@ -432,69 +508,9 @@ namespace diff_drive_controller{
     }
   }
 
-  void DiffDriveController::starting(const ros::Time& time)
+  const Odometry& DiffDriveController::odometry () const
   {
-    brake();
-
-    // Register starting time used to keep fixed rate
-    last_state_publish_time_ = time;
-
-    init_ = false;
-  }
-
-  void DiffDriveController::stopping(const ros::Time& /*time*/)
-  {
-    brake();
-  }
-
-  void DiffDriveController::brake()
-  {
-    const double vel = 0.0;
-    for (size_t i = 0; i < wheel_joints_size_; ++i)
-    {
-      left_wheel_joints_[i].setCommand(vel);
-      right_wheel_joints_[i].setCommand(vel);
-    }
-  }
-
-  bool DiffDriveController::readPosition(double& left_pos, double& right_pos)
-  {
-    left_pos = right_pos = 0.0;
-    for (size_t i = 0; i < wheel_joints_size_; ++i)
-    {
-      const double lp = left_wheel_joints_[i].getPosition();
-      const double rp = right_wheel_joints_[i].getPosition();
-      if (std::isnan(lp) || std::isnan(rp))
-        return false;
-
-      left_pos  += lp;
-      right_pos += rp;
-    }
-
-    left_pos  /= wheel_joints_size_;
-    right_pos /= wheel_joints_size_;
-
-    return true;
-  }
-
-  void DiffDriveController::cmdVelCallback(const geometry_msgs::Twist& command)
-  {
-    if (isRunning())
-    {
-      command_struct_.ang   = command.angular.z;
-      command_struct_.lin   = command.linear.x;
-      command_struct_.stamp = ros::Time::now();
-      command_.writeFromNonRT (command_struct_);
-      ROS_DEBUG_STREAM_NAMED(name_,
-                             "Added values to command. "
-                             << "Ang: "   << command_struct_.ang << ", "
-                             << "Lin: "   << command_struct_.lin << ", "
-                             << "Stamp: " << command_struct_.stamp);
-    }
-    else
-    {
-      ROS_ERROR_NAMED(name_, "Can't accept new commands. Controller is not running.");
-    }
+    return odometry_;
   }
 
   bool DiffDriveController::getWheelNames(ros::NodeHandle& controller_nh,
