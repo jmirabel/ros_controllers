@@ -362,32 +362,6 @@ namespace diff_drive_controller{
     computeCommand (time, period);
   }
 
-
-  void DiffDriveController::starting(const ros::Time& time)
-  {
-    brake();
-
-    // Register starting time used to keep fixed rate
-    last_state_publish_time_ = time;
-
-    init_ = false;
-  }
-
-  void DiffDriveController::stopping(const ros::Time& /*time*/)
-  {
-    brake();
-  }
-
-  void DiffDriveController::brake()
-  {
-    const double vel = 0.0;
-    for (size_t i = 0; i < wheel_joints_size_; ++i)
-    {
-      left_wheel_joints_[i].setCommand(vel);
-      right_wheel_joints_[i].setCommand(vel);
-    }
-  }
-
   bool DiffDriveController::readPosition(double& left_pos, double& right_pos)
   {
     left_pos = right_pos = 0.0;
@@ -512,6 +486,10 @@ namespace diff_drive_controller{
     }
 
     // Compute wheels velocities:
+    const double ws  = wheel_separation_multiplier_   * wheel_separation_;
+    const double lwr = left_wheel_radius_multiplier_  * wheel_radius_;
+    const double rwr = right_wheel_radius_multiplier_ * wheel_radius_;
+
     const double vel_left  = (curr_cmd.lin - curr_cmd.ang * ws / 2.0)/lwr;
     const double vel_right = (curr_cmd.lin + curr_cmd.ang * ws / 2.0)/rwr;
 
